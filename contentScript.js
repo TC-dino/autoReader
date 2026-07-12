@@ -2,14 +2,19 @@
   'use strict';
 
   const STORAGE_KEYS = {
-    speed: 'ar_speed',
+    interval: 'ar_interval',
+    scrollPx: 'ar_scrollPx',
     autoStart: 'ar_autoStart',
     collapsed: 'ar_collapsed',
   };
 
-  const SPEED_DEFAULT = 300; // px/s
-  const SPEED_MIN = 50;
-  const SPEED_MAX = 800;
+  const INTERVAL_DEFAULT = 100; // ms
+  const INTERVAL_MIN = 30;
+  const INTERVAL_MAX = 3000;
+
+  const SCROLL_PX_DEFAULT = 50; // px per step
+  const SCROLL_PX_MIN = 5;
+  const SCROLL_PX_MAX = 500;
 
   const BOTTOM_THRESHOLD_PX = 20;
   const BOTTOM_STREAK_TO_STOP = 3;
@@ -19,13 +24,13 @@
   /** @type {HTMLElement | null} */
   let container = null;
 
-  let speed = SPEED_DEFAULT;
+  let interval = INTERVAL_DEFAULT;
+  let scrollPx = SCROLL_PX_DEFAULT;
   let running = false;
   /** @type {boolean} */
   let paused = true;
 
-  let rafToken = null;
-  let lastTs = 0;
+  let timerToken = null;
 
   let bottomStreak = 0;
   let lastScrollHeight = 0;
@@ -138,10 +143,16 @@
             <input id="ar-progress" type="range" min="0" max="100" step="1" value="0" />
 
             <div class="rangeMetaRow">
-              <div class="label">Speed</div>
-              <div class="value" id="ar-speedText">${SPEED_DEFAULT} px/s</div>
+              <div class="label">滚动间隔</div>
+              <div class="value" id="ar-intervalText">${INTERVAL_DEFAULT} ms</div>
             </div>
-            <input id="ar-speed" type="range" min="${SPEED_MIN}" max="${SPEED_MAX}" step="10" value="${SPEED_DEFAULT}" />
+            <input id="ar-interval" type="range" min="${INTERVAL_MIN}" max="${INTERVAL_MAX}" step="10" value="${INTERVAL_DEFAULT}" />
+
+            <div class="rangeMetaRow">
+              <div class="label">每次下滑</div>
+              <div class="value" id="ar-scrollPxText">${SCROLL_PX_DEFAULT} px</div>
+            </div>
+            <input id="ar-scrollPx" type="range" min="${SCROLL_PX_MIN}" max="${SCROLL_PX_MAX}" step="5" value="${SCROLL_PX_DEFAULT}" />
           </div>
 
           <div class="meta">
@@ -159,8 +170,10 @@
     const dragHandle = shadow.getElementById('ar-dragHandle');
     const progressInput = shadow.getElementById('ar-progress');
     const progressText = shadow.getElementById('ar-progressText');
-    const speedInput = shadow.getElementById('ar-speed');
-    const speedText = shadow.getElementById('ar-speedText');
+    const intervalInput = shadow.getElementById('ar-interval');
+    const intervalText = shadow.getElementById('ar-intervalText');
+    const scrollPxInput = shadow.getElementById('ar-scrollPx');
+    const scrollPxText = shadow.getElementById('ar-scrollPxText');
     const containerText = shadow.getElementById('ar-containerText');
 
     toggleBtn.addEventListener('click', () => {
@@ -171,11 +184,23 @@
       }
     });
 
-    speedInput.addEventListener('input', () => {
-      const v = Number(speedInput.value);
-      speed = Number.isFinite(v) ? v : SPEED_DEFAULT;
-      speedText.textContent = `${speed} px/s`;
-      saveSpeed(speed);
+    intervalInput.addEventListener('input', () => {
+      const v = Number(intervalInput.value);
+      interval = Number.isFinite(v) ? v : INTERVAL_DEFAULT;
+      intervalText.textContent = `${interval} ms`;
+      saveInterval(interval);
+      // If running, restart timer with new interval
+      if (running && !paused) {
+        cancelTick();
+        scheduleTick();
+      }
+    });
+
+    scrollPxInput.addEventListener('input', () => {
+      const v = Number(scrollPxInput.value);
+      scrollPx = Number.isFinite(v) ? v : SCROLL_PX_DEFAULT;
+      scrollPxText.textContent = `${scrollPx} px`;
+      saveScrollPx(scrollPx);
     });
 
     const panelEl = shadow.getElementById('ar-panel');
@@ -213,8 +238,10 @@
       collapseBtn,
       toggleBtn,
       statusEl,
-      speedInput,
-      speedText,
+      intervalInput,
+      intervalText,
+      scrollPxInput,
+      scrollPxText,
       containerText,
       dragHandle,
       progressInput,
@@ -233,10 +260,15 @@
         progressInput.value = String(p);
         progressText.textContent = `${p}%`;
       },
-      setSpeed: (v) => {
-        const vv = Math.max(SPEED_MIN, Math.min(SPEED_MAX, v));
-        speedInput.value = String(vv);
-        speedText.textContent = `${vv} px/s`;
+      setInterval: (v) => {
+        const vv = Math.max(INTERVAL_MIN, Math.min(INTERVAL_MAX, v));
+        intervalInput.value = String(vv);
+        intervalText.textContent = `${vv} ms`;
+      },
+      setScrollPx: (v) => {
+        const vv = Math.max(SCROLL_PX_MIN, Math.min(SCROLL_PX_MAX, v));
+        scrollPxInput.value = String(vv);
+        scrollPxText.textContent = `${vv} px`;
       },
       setContainerLabel: (label) => {
         containerText.textContent = label;
@@ -305,19 +337,19 @@
   async function initStorageAndMaybeAutostart() {
     try {
       if (!chrome?.storage?.sync) {
-        ui.setSpeed(speed);
+        ui.setInterval(interval);
+        ui.setScrollPx(scrollPx);
         updateUIState();
         return;
       }
 
       chrome.storage.sync.get(
-        [STORAGE_KEYS.speed, STORAGE_KEYS.autoStart, STORAGE_KEYS.collapsed],
+        [STORAGE_KEYS.interval, STORAGE_KEYS.scrollPx, STORAGE_KEYS.autoStart, STORAGE_KEYS.collapsed],
         (res) => {
-        if (typeof res?.[STORAGE_KEYS.speed] === 'number') speed = res[STORAGE_KEYS.speed];
-        if (typeof res?.[STORAGE_KEYS.autoStart] !== 'boolean') {
-          // ignore
-        }
-        ui.setSpeed(speed);
+        if (typeof res?.[STORAGE_KEYS.interval] === 'number') interval = res[STORAGE_KEYS.interval];
+        if (typeof res?.[STORAGE_KEYS.scrollPx] === 'number') scrollPx = res[STORAGE_KEYS.scrollPx];
+        ui.setInterval(interval);
+        ui.setScrollPx(scrollPx);
         ui.setContainerLabel('auto');
         if (res?.[STORAGE_KEYS.collapsed] === true) ui.setCollapsed(true);
 
@@ -331,15 +363,25 @@
         }
         });
     } catch {
-      ui.setSpeed(speed);
+      ui.setInterval(interval);
+      ui.setScrollPx(scrollPx);
       updateUIState();
     }
   }
 
-  function saveSpeed(v) {
+  function saveInterval(v) {
     try {
       if (!chrome?.storage?.sync) return;
-      chrome.storage.sync.set({ [STORAGE_KEYS.speed]: v });
+      chrome.storage.sync.set({ [STORAGE_KEYS.interval]: v });
+    } catch {
+      // ignore
+    }
+  }
+
+  function saveScrollPx(v) {
+    try {
+      if (!chrome?.storage?.sync) return;
+      chrome.storage.sync.set({ [STORAGE_KEYS.scrollPx]: v });
     } catch {
       // ignore
     }
@@ -568,7 +610,6 @@
     paused = false;
     updateUIState();
 
-    lastTs = performance.now();
     lastContainerCheckTs = 0;
     updateProgressUI(true);
 
@@ -576,8 +617,8 @@
   }
 
   function scheduleTick() {
-    if (rafToken) cancelAnimationFrame(rafToken);
-    rafToken = requestAnimationFrame(tick);
+    if (timerToken) clearInterval(timerToken);
+    timerToken = setInterval(tick, interval);
   }
 
   function pause(reason) {
@@ -590,8 +631,8 @@
   }
 
   function cancelTick() {
-    if (rafToken) cancelAnimationFrame(rafToken);
-    rafToken = null;
+    if (timerToken) clearInterval(timerToken);
+    timerToken = null;
   }
 
   function stop(text) {
@@ -604,7 +645,7 @@
     ui.setProgress(0);
   }
 
-  function tick(ts) {
+  function tick() {
     if (!running || paused) return;
     if (!container) container = findScrollableContainer();
     if (!container) {
@@ -613,7 +654,8 @@
     }
 
     // Re-evaluate occasionally (nested apps / lazy loaded content).
-    if (ts - lastContainerCheckTs > 2000) {
+    const now = performance.now();
+    if (now - lastContainerCheckTs > 2000) {
       const nextContainer = findScrollableContainer();
       if (nextContainer && nextContainer !== container) {
         const currentMaxScroll = container.scrollHeight - container.clientHeight;
@@ -627,12 +669,12 @@
           container = nextContainer;
           bottomStreak = 0;
           lastScrollHeight = container.scrollHeight;
-          lastHeightChangedTs = ts;
+          lastHeightChangedTs = now;
         }
       }
 
       ui.setContainerLabel(container ? container.tagName.toLowerCase() : 'auto');
-      lastContainerCheckTs = ts;
+      lastContainerCheckTs = now;
     }
 
     const maxScroll = container.scrollHeight - container.clientHeight;
@@ -641,12 +683,8 @@
       return;
     }
 
-    const dtMs = clamp(ts - lastTs, 0, 60);
-    lastTs = ts;
-    const stepPx = speed * (dtMs / 1000);
-
     const currentTop = container.scrollTop;
-    const nextTop = clamp(currentTop + stepPx, 0, maxScroll);
+    const nextTop = clamp(currentTop + scrollPx, 0, maxScroll);
     container.scrollTop = nextTop;
 
     const nearBottom = maxScroll - container.scrollTop <= BOTTOM_THRESHOLD_PX;
@@ -659,7 +697,7 @@
     if (nearBottom) {
       if (heightChanged) {
         lastScrollHeight = scrollHeight;
-        lastHeightChangedTs = ts;
+        lastHeightChangedTs = now;
         heightUnchangedStreak = 0;
       } else {
         heightUnchangedStreak += 1;
@@ -669,12 +707,12 @@
       // but still track height changes for later.
       if (heightChanged) {
         lastScrollHeight = scrollHeight;
-        lastHeightChangedTs = ts;
+        lastHeightChangedTs = now;
       }
       heightUnchangedStreak = 0;
     }
 
-    const noGrowthTooLong = ts - lastHeightChangedTs > NO_GROWTH_AFTER_MS;
+    const noGrowthTooLong = now - lastHeightChangedTs > NO_GROWTH_AFTER_MS;
     if (
       bottomStreak >= BOTTOM_STREAK_TO_STOP &&
       heightUnchangedStreak >= BOTTOM_STREAK_TO_STOP &&
@@ -684,8 +722,7 @@
       return;
     }
 
-    updateProgressUI(false, ts);
-    rafToken = requestAnimationFrame(tick);
+    updateProgressUI(false, now);
   }
 
   // ===== Seek (drag to change scroll position) =====
