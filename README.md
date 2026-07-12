@@ -1,6 +1,10 @@
 # AutoReader Scroll (Edge/Chrome MV3)
 
-一个面向“任意网页自动下滑阅读”的浏览器插件（内容脚本注入悬浮控制条）。
+一个面向"任意网页自动下滑阅读"的浏览器插件（内容脚本注入悬浮控制条）。
+
+## 实际效果
+
+![实际效果](images/Snipaste.png)
 
 ## 如何加载（Load unpacked）
 
