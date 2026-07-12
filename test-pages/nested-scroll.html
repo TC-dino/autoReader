@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AutoReader Test - Nested Scroll</title>
+    <style>
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        line-height: 1.6;
+        padding: 24px;
+      }
+      .outer {
+        height: 70vh;
+        overflow-y: auto;
+        border: 1px solid #e6e6e6;
+        border-radius: 14px;
+        padding: 14px;
+        background: #fafafa;
+      }
+      .inner {
+        height: 360px;
+        overflow-y: auto;
+        border: 1px solid #d9d9d9;
+        border-radius: 14px;
+        padding: 14px;
+        background: #fff;
+        margin-top: 18px;
+      }
+      .card {
+        border: 1px solid #eee;
+        border-radius: 12px;
+        padding: 12px;
+        margin: 12px 0;
+        background: #fff;
+      }
+      .legend {
+        color: #555;
+        background: #f6f6f6;
+        border: 1px solid #ececec;
+        border-radius: 10px;
+        padding: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Nested Scroll Page</h1>
+    <div class="legend">
+      这个页面有一个 <b>outer</b> 可滚动容器，以及一个嵌套的 <b>inner</b> 可滚动容器。<br />
+      进入并点击右上角扩展 <b>Start</b> 后，插件应优先在光标点所在区域滚动更“贴近内容”的容器。
+    </div>
+
+    <div class="outer" id="outer">
+      <div class="card"><b>Outer top</b> - 向下滚动进入 inner 区域。</div>
+      <div id="outerItems"></div>
+
+      <div class="inner" id="inner">
+        <div class="card"><b>Inner top</b> - 测试嵌套滚动容器。</div>
+        <div id="innerItems"></div>
+      </div>
+
+      <div class="card"><b>Outer bottom</b></div>
+    </div>
+
+    <script>
+      const outerItems = document.getElementById('outerItems');
+      for (let i = 1; i <= 40; i++) {
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.innerHTML = `<b>Outer ${i}</b><div>outer 容器内容（在 inner 上方/下方都有）。</div>`;
+        outerItems.appendChild(el);
+      }
+
+      const innerItems = document.getElementById('innerItems');
+      for (let i = 1; i <= 55; i++) {
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.innerHTML = `<b>Inner ${i}</b><div>inner 容器内容（用于测试插件选择正确滚动容器）。</div>`;
+        innerItems.appendChild(el);
+      }
+    </script>
+  </body>
+</html>
+

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AutoReader Test - Simple Scroll</title>
+    <style>
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        line-height: 1.6;
+        padding: 24px;
+      }
+      .block {
+        max-width: 720px;
+      }
+      h1 {
+        margin-top: 0;
+      }
+      .hint {
+        color: #555;
+        background: #f5f5f5;
+        border: 1px solid #e7e7e7;
+        padding: 12px 14px;
+        border-radius: 10px;
+      }
+      .item {
+        margin: 18px 0;
+        padding: 14px 16px;
+        border: 1px solid #eee;
+        border-radius: 12px;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="block">
+      <h1>Simple Scroll Page</h1>
+      <div class="hint">
+        启用扩展后点击右上角 <b>Start</b>，观察是否能在普通页面自动下滑阅读。
+      </div>
+      <div id="items"></div>
+    </div>
+
+    <script>
+      const items = document.getElementById('items');
+      for (let i = 1; i <= 80; i++) {
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.innerHTML = `<b>Paragraph ${i}</b><div>用于测试页面滚动容器识别与自动下滑。页面越往下越长。</div>`;
+        items.appendChild(el);
+      }
+    </script>
+  </body>
+</html>
+
